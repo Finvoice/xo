@@ -1,5 +1,5 @@
 {{- $short := (shortname .Name "err" "res" "sqlstr" "db" "XOLog") -}}
-{{- $table := (schema .Schema .Table.TableName) -}}
+{{- $table := (schema .Table.TableName) -}}
 {{- if .Comment -}}
 // {{ .Comment }}
 {{- else -}}
@@ -16,15 +16,69 @@ type {{ .Name }} struct {
 {{ end }}
 }
 
+var {{.Name}}Fields = []string{
+  {{- range .Fields }}
+  "{{ .Col.ColumnName }}",
+  {{- end }}
+}
+
+var {{.Name}}FieldTypes = map[string]string{
+  {{- range .Fields }}
+  "{{ .Col.ColumnName }}": "{{retype .Type}}",
+  {{- end }}
+}
+
 {{ if .PrimaryKey }}
 // Exists determines if the {{ .Name }} exists in the database.
 func ({{ $short }} *{{ .Name }}) Exists() bool {
 	return {{ $short }}._exists
 }
 
-// Deleted provides information if the {{ .Name }} has been deleted from the database.
-func ({{ $short }} *{{ .Name }}) Deleted() bool {
+// IsDeleted provides information if the {{ .Name }} has been deleted from the database.
+func ({{ $short }} *{{ .Name }}) IsDeleted() bool {
 	return {{ $short }}._deleted
+}
+
+// Where finds slice of {{ .Name }} in the database.
+// queryStr must be of form "abc = ? AND def = ? AND ...", and match the number of ?s to args
+func {{ .Name }}Where(db XODB, queryStr string, args ...interface{}) ([]*{{ .Name }}, error) {
+  var err error
+
+  // sql query 
+  sqlstr := `SELECT ` +
+    `{{ colnames .Fields }} ` +
+    `FROM {{ $table }} ` +
+    `WHERE ` + queryStr
+
+  // run query
+  XOLog(sqlstr, args...)
+
+  q, err := db.Query(sqlstr, args...)
+  if err != nil {
+    return nil, err
+  }
+  defer q.Close()
+  
+  res := []*{{ .Name }}{}
+  for q.Next() {
+    {{ $short }} := {{ .Name }}{
+      _exists: true,
+    }
+
+    // scan
+    err = q.Scan({{ fieldnames .Fields (print "&" $short) }})
+      if err != nil {
+        return nil, err
+      }
+
+    res = append(res, &{{ $short }})
+  }
+
+  return res, nil
+}
+
+func ({{ $short }} *{{ .Name }}) GetArgs() []driver.Value {
+  return []driver.Value{ {{ fieldnames .Fields $short .PrimaryKey.Name }} }
 }
 
 // Insert inserts the {{ .Name }} to the database.
@@ -35,7 +89,6 @@ func ({{ $short }} *{{ .Name }}) Insert(db XODB) error {
 	if {{ $short }}._exists {
 		return errors.New("insert failed: already exists")
 	}
-
 
 {{ if .Table.ManualPk  }}
 	// sql insert query, primary key must be provided
