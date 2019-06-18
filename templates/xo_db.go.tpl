@@ -113,12 +113,12 @@ func (xf *XoDecimal) Scan(src interface{}) error {
     return nil
   }
   str := asString(src)
-  newxf, _, err := big.ParseFloat(str, 10, 53, big.ToNearestEven)
-  *xf = XoDecimal{*newxf}
+  newxf, err := NewXoDecimal(str)
+  *xf = newxf
   return err
 }
 
-func (ss *XoDecimal) Value() (driver.Value, error) {
+func (ss XoDecimal) Value() (driver.Value, error) {
   return ss.String(), nil
 }
 
@@ -137,7 +137,7 @@ func (xf *NullableXoDecimal) Scan(src interface{}) error {
   return (&xf.XoDecimal).Scan(src)
 }
 
-func (ss *NullableXoDecimal) Value() (driver.Value, error) {
+func (ss NullableXoDecimal) Value() (driver.Value, error) {
   if ss.Valid == false {
     return nil, nil
   }
@@ -145,6 +145,10 @@ func (ss *NullableXoDecimal) Value() (driver.Value, error) {
   return ss.XoDecimal.String(), nil
 }
 
+func NewXoDecimal(strval string) (XoDecimal, error) {
+  newbf, _, err := big.ParseFloat(strval, 10, 53, big.ToNearestEven)
+  return XoDecimal{*newbf}, err
+}
 
 // StringSlice is a slice of strings.
 type StringSlice []string
