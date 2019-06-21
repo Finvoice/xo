@@ -68,7 +68,7 @@ func ToNullTimeFromString(s string) mysql.NullTime {
 }
 
 func ToNullTimeFromTime(t time.Time) mysql.NullTime {
-  return mysql.NullTime{Time : t, Valid : time.Time{} == t}
+  return mysql.NullTime{Time : t, Valid : time.Time{} != t}
 }
 
 // ScannerValuer is the common interface for types that implement both the
